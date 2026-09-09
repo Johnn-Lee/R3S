@@ -10,6 +10,6 @@
 
 ## 系统适配
 
-目前两个工具均面向 **NanoPi R3S**，已在使用 `apk` 包管理器的 **ImmortalWrt** 上测试。
+目前两个工具均面向 **NanoPi R3S**，已在 **ImmortalWrt** 上测试。
 
 它们并不适用于所有 OpenWrt 设备：安装程序会校验 NanoPi R3S 型号，并依赖 OpenWrt/ImmortalWrt 的 `procd`、`uhttpd`、UCI、`ubus` 等组件；风扇温控还依赖 R3S 特定的 USB 供电 GPIO。其他设备或系统版本不能直接保证兼容。
