@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>R3S 监控</title>
+<style>
+:root { color-scheme: light; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+svg { display: block; }
+
+/* ===== 莫奈印象派背景：层叠柔和色块 ===== */
+body {
+  color: #3c4a5c;
+  font-family: -apple-system, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  position: relative;
+  background:
+    radial-gradient(640px 460px at 12% 18%, rgba(154, 204, 228, 0.65), transparent 62%),
+    radial-gradient(520px 520px at 88% 12%, rgba(246, 200, 199, 0.55), transparent 62%),
+    radial-gradient(720px 540px at 78% 88%, rgba(178, 219, 188, 0.60), transparent 62%),
+    radial-gradient(620px 620px at 18% 82%, rgba(199, 184, 228, 0.55), transparent 62%),
+    radial-gradient(460px 360px at 52% 46%, rgba(255, 245, 219, 0.65), transparent 66%),
+    linear-gradient(160deg, #e9f2f7 0%, #f4eff8 100%);
+}
+/* 模拟笔触的柔焦色斑 */
+.blob { position: fixed; border-radius: 50%; filter: blur(70px); opacity: .55; pointer-events: none; }
+.blob.b1 { width: 420px; height: 340px; top: -80px; left: -60px;  background: #a7cde0; }
+.blob.b2 { width: 380px; height: 320px; bottom: -60px; right: -40px; background: #b9d9c2; }
+.blob.b3 { width: 300px; height: 260px; top: 30%; left: 58%; background: #f2cbd7; opacity: .45; }
+
+.row { display: flex; align-items: flex-end; justify-content: center; gap: 44px; padding: 24px; position: relative; }
+
+/* ===== 毛玻璃卡片 ===== */
+.card {
+  background: rgba(255, 255, 255, 0.38);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.60);
+  border-radius: 24px;
+  padding: 24px 20px 18px;
+  display: flex; flex-direction: column; align-items: center;
+  box-shadow: 0 10px 34px rgba(84, 110, 140, 0.18),
+              inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+.card.small { width: 216px; }
+.card.big   { width: 348px; padding-top: 14px; }
+.label { font-size: 19px; color: #6f8096; letter-spacing: 2px; margin-top: 14px; }
+
+.ringwrap { position: relative; width: 168px; height: 168px; }
+.ringwrap svg { transform: rotate(-90deg); }
+.ringval {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center;
+}
+.ringval .v { font-size: 34px; font-weight: 600; color: #34455a; font-variant-numeric: tabular-nums; }
+.ringval .u { font-size: 14px; color: #7a8aa0; margin-top: 4px; letter-spacing: 1px; }
+
+.gaugeval { display: flex; flex-direction: column; align-items: center; margin-top: 0; }
+.gaugeval .v { font-size: 60px; font-weight: 700; color: #2e3f54; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.gaugeval .v .pct { font-size: 0.45em; font-weight: 600; color: #7a8aa0; margin-left: 2px; }
+.gaugeval .u { font-size: 15px; color: #7a8aa0; letter-spacing: 2px; margin-top: 2px; }
+
+/* ============ 手机端适配 ============ */
+@media (max-width: 760px) {
+  body { overflow-y: auto; align-items: flex-start; }
+  .row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(150px, 190px));
+    justify-content: center;
+    gap: 14px;
+    padding: 16px;
+    width: 100%;
+  }
+  .card.big {
+    grid-column: 1 / -1;
+    order: -1;                 /* 表盘置顶全宽 */
+    width: 100%;
+    max-width: 400px;
+    padding: 14px 10px 16px;
+    justify-self: center;
+  }
+  .card.big svg { width: 100%; height: auto; }
+  .card.small { width: 100%; padding: 16px 12px 12px; }
+  .ringwrap { width: 100%; height: auto; aspect-ratio: 1 / 1; }
+  .ringwrap svg { width: 100%; height: 100%; }
+  .ringval .v { font-size: 27px; }
+  .ringval .u { font-size: 12px; }
+  .gaugeval .v { font-size: 44px; }
+  .gaugeval .u { font-size: 13px; }
+  .label { font-size: 16px; margin-top: 10px; letter-spacing: 1.5px; }
+}
+</style>
+</head>
+<body>
+<div class="blob b1"></div>
+<div class="blob b2"></div>
+<div class="blob b3"></div>
+<div class="row">
+
+  <!-- 内存使用 -->
+  <div class="card small">
+    <div class="ringwrap">
+      <svg width="168" height="168" viewBox="0 0 168 168">
+        <circle cx="84" cy="84" r="74" fill="none" stroke="rgba(110,138,168,0.22)" stroke-width="14"/>
+        <circle id="ring-mem" cx="84" cy="84" r="74" fill="none" stroke="#2fa98c"
+                stroke-width="14" stroke-linecap="round" pathLength="100"
+                stroke-dasharray="0 100" style="transition: stroke-dasharray .8s ease, stroke .8s ease"/>
+      </svg>
+      <div class="ringval"><div class="v" id="val-mem">--</div><div class="u">%</div></div>
+    </div>
+    <div class="label">内存使用</div>
+  </div>
+
+  <!-- CPU 温度 -->
+  <div class="card small">
+    <div class="ringwrap">
+      <svg width="168" height="168" viewBox="0 0 168 168">
+        <circle cx="84" cy="84" r="74" fill="none" stroke="rgba(110,138,168,0.22)" stroke-width="14"/>
+        <circle id="ring-temp" cx="84" cy="84" r="74" fill="none" stroke="#5b8fd6"
+                stroke-width="14" stroke-linecap="round" pathLength="100"
+                stroke-dasharray="0 100" style="transition: stroke-dasharray .8s ease, stroke .8s ease"/>
+      </svg>
+      <div class="ringval"><div class="v" id="val-temp">--</div><div class="u">°C</div></div>
+    </div>
+    <div class="label">CPU 温度</div>
+  </div>
+
+  <!-- CPU 大表盘 -->
+  <div class="card big">
+    <svg id="gauge-svg" width="320" height="200" viewBox="0 0 320 200">
+      <!-- 刻度 -->
+      <g id="ticks" stroke="rgba(110,138,168,0.45)" stroke-width="2.5" stroke-linecap="round"></g>
+      <!-- 背景弧 -->
+      <path d="M 37 180 A 123 123 0 0 1 283 180" fill="none" stroke="rgba(110,138,168,0.22)" stroke-width="20" stroke-linecap="round"/>
+      <!-- 进度弧 -->
+      <path id="gauge-arc" d="M 37 180 A 123 123 0 0 1 283 180" fill="none" stroke="#2fa98c"
+            stroke-width="20" stroke-linecap="round" pathLength="100"
+            stroke-dasharray="0 100" style="transition: stroke-dasharray .8s ease, stroke .8s ease"/>
+      <!-- 指针 -->
+      <g id="needle" style="transition: transform .8s cubic-bezier(.4,1.6,.5,1)">
+        <line x1="160" y1="180" x2="160" y2="78" stroke="#52627a" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="160" cy="180" r="9" fill="#52627a"/>
+        <circle cx="160" cy="180" r="4" fill="#f2f6fa"/>
+      </g>
+    </svg>
+    <div class="gaugeval"><div class="v" id="val-cpu">--</div><div class="u">CPU 占用率</div></div>
+  </div>
+
+  <!-- 下行 -->
+  <div class="card small">
+    <div class="ringwrap">
+      <svg width="168" height="168" viewBox="0 0 168 168">
+        <circle cx="84" cy="84" r="74" fill="none" stroke="rgba(110,138,168,0.22)" stroke-width="14"/>
+        <circle id="ring-rx" cx="84" cy="84" r="74" fill="none" stroke="#4a9fd8"
+                stroke-width="14" stroke-linecap="round" pathLength="100"
+                stroke-dasharray="0 100" style="transition: stroke-dasharray .8s ease, stroke .8s ease"/>
+      </svg>
+      <div class="ringval"><div class="v" id="val-rx">--</div><div class="u">Mbps</div></div>
+    </div>
+    <div class="label">下行</div>
+  </div>
+
+  <!-- 上行 -->
+  <div class="card small">
+    <div class="ringwrap">
+      <svg width="168" height="168" viewBox="0 0 168 168">
+        <circle cx="84" cy="84" r="74" fill="none" stroke="rgba(110,138,168,0.22)" stroke-width="14"/>
+        <circle id="ring-tx" cx="84" cy="84" r="74" fill="none" stroke="#8f7ec9"
+                stroke-width="14" stroke-linecap="round" pathLength="100"
+                stroke-dasharray="0 100" style="transition: stroke-dasharray .8s ease, stroke .8s ease"/>
+      </svg>
+      <div class="ringval"><div class="v" id="val-tx">--</div><div class="u">Mbps</div></div>
+    </div>
+    <div class="label">上行</div>
+  </div>
+
+</div>
+<script>
+(function () {
+  // 生成表盘刻度（每 10% 一格）
+  var ticks = document.getElementById('ticks');
+  var CX = 160, CY = 180, R = 123;
+  for (var i = 0; i <= 10; i++) {
+    var a = Math.PI * (1 - i / 10);           // 180° -> 0°
+    var long = (i % 5 === 0);
+    var r1 = R + (long ? 16 : 11), r2 = R + 21;
+    var x1 = CX + Math.cos(a) * r1, y1 = CY - Math.sin(a) * r1;
+    var x2 = CX + Math.cos(a) * r2, y2 = CY - Math.sin(a) * r2;
+    var ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    ln.setAttribute('x1', x1); ln.setAttribute('y1', y1);
+    ln.setAttribute('x2', x2); ln.setAttribute('y2', y2);
+    if (long) { ln.setAttribute('stroke', 'rgba(110,138,168,0.7)'); ln.setAttribute('stroke-width', '3'); }
+    ticks.appendChild(ln);
+  }
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function setRing(id, pct) {
+    pct = Math.max(0, Math.min(100, pct));
+    $(id).setAttribute('stroke-dasharray', pct.toFixed(1) + ' 100');
+  }
+  function setStroke(id, color) { $(id).setAttribute('stroke', color); }
+
+  // 莫奈色系：睡莲绿 / 晨雾蓝 / 睡莲粉 / 玫红
+  function colorFor(pct, warn, crit) {
+    return pct < warn ? '#2fa98c' : (pct < crit ? '#e0a04c' : '#e0708a');
+  }
+  function tempColor(t) { return t < 60 ? '#5b8fd6' : (t < 75 ? '#e0a04c' : '#e0708a'); }
+
+  // 字节/秒 -> Mbps 显示
+  function fmtMbps(bps) {
+    var m = bps * 8 / 1000000;
+    if (m < 10) return m.toFixed(2);
+    if (m < 100) return m.toFixed(1);
+    return m.toFixed(0);
+  }
+
+  function update(d) {
+    // 内存
+    var mem = d.mem;
+    $('val-mem').textContent = mem.toFixed(0);
+    setRing('ring-mem', mem);
+    setStroke('ring-mem', colorFor(mem, 60, 85));
+
+    // 温度（环形按 0-100°C 映射）
+    var t = d.temp;
+    $('val-temp').textContent = t.toFixed(1);
+    setRing('ring-temp', t);
+    setStroke('ring-temp', tempColor(t));
+
+    // CPU 大表盘：精度跟随系统输出（整数显整数，否则保留两位小数）
+    var cpu = d.cpu;
+    var cpuStr = (Math.round(cpu * 100) / 100) % 1 === 0
+      ? cpu.toFixed(0) : cpu.toFixed(2);
+    $('val-cpu').innerHTML = cpuStr + '<span class="pct">%</span>';
+    setRing('gauge-arc', cpu);
+    setStroke('gauge-arc', colorFor(cpu, 60, 85));
+    $('needle').style.transform = 'rotate(' + (-90 + cpu * 1.8) + 'deg)';
+    $('needle').style.transformOrigin = '160px 180px';
+
+    // 网速（环形按 1000 Mbps 满刻度）
+    $('val-rx').textContent = fmtMbps(d.rx);
+    $('val-tx').textContent = fmtMbps(d.tx);
+    setRing('ring-rx', d.rx * 8 / 10000000);
+    setRing('ring-tx', d.tx * 8 / 10000000);
+  }
+
+  function poll() {
+    fetch('data.json', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(update)
+      .catch(function () {});
+  }
+  poll();
+  setInterval(poll, 2000);
+})();
+</script>
+</body>
+</html>
