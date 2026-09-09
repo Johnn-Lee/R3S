@@ -1,0 +1,5 @@
+config usbpower 'main'
+	option enabled '0'
+	option temperature '45'
+	option hysteresis '3'
+	option state '1'

@@ -1,0 +1,84 @@
+#!/bin/sh
+
+printf 'Content-Type: application/json; charset=utf-8\r\n'
+printf 'Cache-Control: no-store\r\n'
+printf 'X-Content-Type-Options: nosniff\r\n'
+printf "Content-Security-Policy: default-src 'none'; frame-ancestors 'none'\r\n"
+printf '\r\n'
+
+cpu_temp_raw() {
+	local zone
+	for zone in /sys/class/thermal/thermal_zone*; do
+		[ "$(cat "$zone/type" 2>/dev/null)" = "cpu-thermal" ] || continue
+		cat "$zone/temp" 2>/dev/null
+		return
+	done
+}
+
+json_status() {
+	state="$(/usr/libexec/usb-power-control status 2>/dev/null)"
+	[ "$state" = "0" ] || [ "$state" = "1" ] || state="unknown"
+	enabled="$(uci -q get usbpower.main.enabled || echo 0)"
+	temperature="$(uci -q get usbpower.main.temperature || echo 45)"
+	hysteresis="$(uci -q get usbpower.main.hysteresis || echo 3)"
+	stop_temperature=$((temperature - hysteresis))
+	temp_raw="$(cpu_temp_raw)"
+	if [ -n "$temp_raw" ] && [ "$temp_raw" -ge 0 ] 2>/dev/null; then
+		cpu_temp="$(printf '%d.%d' $((temp_raw / 1000)) $(((temp_raw % 1000) / 100)))"
+	else
+		cpu_temp="null"
+	fi
+	changed="$(cat /var/run/usb-power/changed 2>/dev/null || echo --)"
+	now="$(TZ='CST-8' date '+%Y-%m-%d %H:%M:%S')"
+	printf '{"ok":true,"state":"%s","enabled":%s,"cpu_temp":%s,"temperature":%s,"hysteresis":%s,"stop_temperature":%s,"server_time":"%s","changed":"%s"}\n' \
+		"$state" "$enabled" "$cpu_temp" "$temperature" "$hysteresis" "$stop_temperature" "$now" "$changed"
+}
+
+error_json() {
+	printf '{"ok":false,"error":"%s"}\n' "$1"
+	exit 0
+}
+
+param() {
+	printf '%s' "$body" | tr '&' '\n' | sed -n "s/^$1=//p" | head -n 1 | sed 's/+/ /g'
+}
+
+if [ "$REQUEST_METHOD" = "GET" ]; then
+	json_status
+	exit 0
+fi
+
+[ "$REQUEST_METHOD" = "POST" ] || error_json '仅支持 GET 或 POST'
+[ "${CONTENT_LENGTH:-0}" -le 1024 ] 2>/dev/null || error_json '请求过大'
+body="$(dd bs=1 count="${CONTENT_LENGTH:-0}" 2>/dev/null)"
+action="$(param action)"
+
+case "$action" in
+	control)
+		state="$(param state)"
+		[ "$state" = "0" ] || [ "$state" = "1" ] || error_json '无效的供电状态'
+		/usr/libexec/usb-power-control set "$state" >/dev/null 2>&1 || error_json 'GPIO 控制失败'
+		json_status
+		;;
+	thermal)
+		enabled="$(param enabled)"
+		temperature="$(param temperature)"
+		hysteresis="$(param hysteresis)"
+		[ "$enabled" = "0" ] || [ "$enabled" = "1" ] || error_json '无效的温控开关'
+		printf '%s\n' "$temperature" | grep -Eq '^[0-9]+$' || error_json '启动温度必须是整数'
+		printf '%s\n' "$hysteresis" | grep -Eq '^[0-9]+$' || error_json '降温强度必须是整数'
+		[ "$temperature" -ge 20 ] && [ "$temperature" -le 90 ] || error_json '启动温度范围为 20–90°C'
+		[ "$hysteresis" -ge 1 ] && [ "$hysteresis" -le 20 ] || error_json '降温强度范围为 1–20°C'
+		[ "$hysteresis" -lt "$temperature" ] || error_json '降温强度必须低于启动温度'
+		uci -q set usbpower.main.enabled="$enabled"
+		uci -q set usbpower.main.temperature="$temperature"
+		uci -q set usbpower.main.hysteresis="$hysteresis"
+		uci -q delete usbpower.main.on_time
+		uci -q delete usbpower.main.off_time
+		uci -q delete usbpower.main.timezone
+		uci -q commit usbpower || error_json '配置保存失败'
+		[ "$enabled" = "1" ] && /usr/libexec/usb-power-control reconcile >/dev/null 2>&1
+		json_status
+		;;
+	*) error_json '未知操作' ;;
+esac

@@ -1,0 +1,27 @@
+#!/bin/sh
+
+cpu_temp() {
+	local zone
+	for zone in /sys/class/thermal/thermal_zone*; do
+		[ "$(cat "$zone/type" 2>/dev/null)" = "cpu-thermal" ] || continue
+		cat "$zone/temp" 2>/dev/null
+		return
+	done
+}
+
+while true; do
+	if [ "$(uci -q get usbpower.main.enabled || echo 0)" = "1" ]; then
+		temp="$(cpu_temp)"
+		threshold="$(uci -q get usbpower.main.temperature || echo 45)"
+		hysteresis="$(uci -q get usbpower.main.hysteresis || echo 3)"
+		state="$(/usr/libexec/usb-power-control status 2>/dev/null)"
+		start=$((threshold * 1000))
+		stop=$(((threshold - hysteresis) * 1000))
+		if [ -n "$temp" ] && [ "$temp" -gt "$start" ] 2>/dev/null && [ "$state" != "1" ]; then
+			/usr/libexec/usb-power-control set 1
+		elif [ -n "$temp" ] && [ "$temp" -le "$stop" ] 2>/dev/null && [ "$state" != "0" ]; then
+			/usr/libexec/usb-power-control set 0
+		fi
+	fi
+	sleep 5
+done

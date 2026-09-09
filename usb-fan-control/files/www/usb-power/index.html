@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#e9f2f7">
+  <title>NanoPi R3S · USB 供电</title>
+  <style>
+    :root { color-scheme: light; --ink:#2e3f54; --muted:#6f8096; --blue:#5b8fd6; --green:#2fa98c; --rose:#e0708a; --lav:#8f7ec9; }
+    * { box-sizing:border-box; }
+    html { min-height:100%; }
+    body {
+      min-height:100vh; margin:0; padding:clamp(22px,4vw,52px) 18px;
+      position:relative; overflow-x:hidden;
+      font-family:-apple-system,"Noto Sans SC","PingFang SC","Microsoft YaHei","WenQuanYi Micro Hei",sans-serif;
+      color:var(--ink);
+      background:
+        radial-gradient(640px 460px at 12% 18%,rgba(154,204,228,.65),transparent 62%),
+        radial-gradient(520px 520px at 88% 12%,rgba(246,200,199,.55),transparent 62%),
+        radial-gradient(720px 540px at 78% 88%,rgba(178,219,188,.60),transparent 62%),
+        radial-gradient(620px 620px at 18% 82%,rgba(199,184,228,.55),transparent 62%),
+        radial-gradient(460px 360px at 52% 46%,rgba(255,245,219,.65),transparent 66%),
+        linear-gradient(160deg,#e9f2f7 0%,#f4eff8 100%);
+    }
+    button,input { font:inherit; }
+    button { -webkit-tap-highlight-color:transparent; }
+    .blob { position:fixed; border-radius:50%; filter:blur(70px); opacity:.5; pointer-events:none; }
+    .b1 { width:420px;height:340px;top:-80px;left:-60px;background:#a7cde0; }
+    .b2 { width:380px;height:320px;bottom:-60px;right:-40px;background:#b9d9c2; }
+    .b3 { width:300px;height:260px;top:30%;left:58%;background:#f2cbd7;opacity:.45; }
+    .shell { position:relative; z-index:1; width:min(940px,100%); margin:0 auto; }
+    header { display:flex; align-items:flex-end; justify-content:space-between; gap:18px; margin:0 5px 24px; }
+    .eyebrow { margin:0 0 6px; color:var(--muted); font-size:12px; font-weight:700; letter-spacing:2.2px; text-transform:uppercase; }
+    h1 { margin:0; font-size:clamp(26px,4vw,38px); line-height:1.15; letter-spacing:.5px; font-weight:720; }
+    .clock { color:var(--muted); font-size:13px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .grid { display:grid; grid-template-columns:minmax(300px,1.05fr) minmax(340px,1fr); gap:18px; align-items:stretch; }
+    .card {
+      background:rgba(255,255,255,.38); -webkit-backdrop-filter:blur(18px) saturate(160%); backdrop-filter:blur(18px) saturate(160%);
+      border:1px solid rgba(255,255,255,.60); border-radius:24px; padding:25px 24px 22px;
+      box-shadow:0 10px 34px rgba(84,110,140,.18),inset 0 1px 0 rgba(255,255,255,.55);
+    }
+    .card-title { margin:0; color:var(--muted); font-size:13px; font-weight:700; letter-spacing:1.8px; }
+    .status-card { display:flex; min-height:420px; flex-direction:column; align-items:center; text-align:center; }
+    .orb-wrap { position:relative; display:grid; place-items:center; width:190px; height:190px; margin:26px 0 15px; }
+    .orb-wrap::before,.orb-wrap::after { content:""; position:absolute; border-radius:50%; transition:all .8s ease; }
+    .orb-wrap::before { inset:0; background:rgba(255,255,255,.25); border:1px solid rgba(255,255,255,.7); box-shadow:0 12px 35px rgba(73,110,140,.18),inset 0 0 28px rgba(255,255,255,.45); }
+    .orb-wrap::after { inset:17px; background:rgba(111,128,150,.13); box-shadow:inset 0 0 0 1px rgba(255,255,255,.7); }
+    .orb-wrap.on::after { background:rgba(47,169,140,.18); box-shadow:0 0 42px rgba(47,169,140,.22),inset 0 0 0 1px rgba(255,255,255,.75); }
+    .power-icon { position:relative; z-index:1; width:82px; height:82px; color:#8b99aa; transition:color .8s ease,filter .8s ease; }
+    .on .power-icon { color:var(--green); filter:drop-shadow(0 4px 10px rgba(47,169,140,.25));  animation:fan-spin 2.4s linear infinite; }
+    @keyframes fan-spin { to { transform:rotate(360deg); } }
+    .status { font-size:32px; font-weight:720; line-height:1.2; font-variant-numeric:tabular-nums; transition:color .8s ease; }
+    .status.on { color:var(--green); }
+    .status.off { color:var(--rose); }
+    .status-note { min-height:22px; margin:8px 0 20px; color:var(--muted); font-size:13px; }
+    .actions { display:grid; grid-template-columns:1fr 1fr; gap:12px; width:100%; margin-top:auto; }
+    .btn { min-height:48px; border:0; border-radius:15px; cursor:pointer; font-weight:700; letter-spacing:.6px; transition:transform .18s ease,box-shadow .18s ease,opacity .18s ease; }
+    .btn:hover { transform:translateY(-1px); }
+    .btn:active { transform:translateY(1px); }
+    .btn:disabled { cursor:wait; opacity:.55; transform:none; }
+    .btn-on { color:white; background:linear-gradient(135deg,#58b9a2,#2fa98c); box-shadow:0 8px 20px rgba(47,169,140,.23); }
+    .btn-off { color:#a44d62; background:rgba(255,255,255,.52); border:1px solid rgba(224,112,138,.28); }
+    .thermal-card { display:flex; flex-direction:column; }
+    .switch-row { display:flex; align-items:center; justify-content:space-between; padding:18px 0 20px; border-bottom:1px solid rgba(110,138,168,.15); }
+    .switch-copy strong { display:block; font-size:17px; }
+    .switch-copy span { display:block; margin-top:4px; color:var(--muted); font-size:12px; }
+    .switch { position:relative; width:54px; height:31px; flex:none; }
+    .switch input { position:absolute; opacity:0; pointer-events:none; }
+    .slider { position:absolute; inset:0; border-radius:20px; background:rgba(111,128,150,.22); border:1px solid rgba(255,255,255,.7); cursor:pointer; transition:background .8s ease; }
+    .slider::after { content:""; position:absolute; width:23px; height:23px; top:3px; left:4px; border-radius:50%; background:white; box-shadow:0 3px 9px rgba(55,74,96,.24); transition:transform .25s ease; }
+    .switch input:checked + .slider { background:rgba(91,143,214,.72); }
+    .switch input:checked + .slider::after { transform:translateX(22px); }
+    .control-grid { display:grid; grid-template-columns:1fr 1fr; gap:13px; margin:19px 0 14px; }
+    .field { display:block; padding:14px 14px 12px; border-radius:16px; background:rgba(255,255,255,.28); border:1px solid rgba(255,255,255,.66); }
+    .field span { display:block; margin-bottom:8px; color:var(--muted); font-size:12px; letter-spacing:1px; }
+    input[type=number] { width:100%; padding:0; border:0; outline:0; color:var(--ink); background:transparent; font-size:23px; font-weight:650; font-variant-numeric:tabular-nums; }
+    .temp-display { display:flex; align-items:baseline; justify-content:center; margin:20px 0 12px; line-height:1; }
+    .temp-value { font-size:58px; font-weight:720; color:var(--blue); font-variant-numeric:tabular-nums; transition:color .8s ease; }
+    .temp-unit { margin-left:6px; color:var(--muted); font-size:19px; font-weight:650; }
+    .temp-track { height:7px; overflow:hidden; margin:0 4px 13px; border-radius:8px; background:rgba(110,138,168,.17); }
+    .temp-track i { display:block; width:0; height:100%; border-radius:inherit; background:var(--blue); transition:width .8s ease,background .8s ease; }
+    .thermal-rule { min-height:36px; margin:0 0 18px; color:var(--muted); font-size:12px; line-height:1.55; text-align:center; }
+    .save { width:100%; color:white; background:linear-gradient(135deg,#789eda,#8f7ec9); box-shadow:0 8px 20px rgba(111,103,174,.22); }
+    .facts { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:auto; padding-top:18px; }
+    .fact { min-width:0; padding:12px 10px; text-align:center; border-radius:14px; background:rgba(255,255,255,.24); }
+    .fact b { display:block; overflow:hidden; color:var(--ink); font-size:13px; font-variant-numeric:tabular-nums; text-overflow:ellipsis; white-space:nowrap; }
+    .fact span { display:block; margin-top:4px; color:var(--muted); font-size:10px; letter-spacing:.5px; }
+    .toast { position:fixed; z-index:5; left:50%; bottom:26px; transform:translate(-50%,16px); min-width:180px; max-width:calc(100% - 36px); padding:11px 18px; border-radius:14px; color:white; background:rgba(46,63,84,.9); box-shadow:0 8px 24px rgba(46,63,84,.22); text-align:center; font-size:13px; opacity:0; pointer-events:none; transition:opacity .2s ease,transform .2s ease; }
+    .toast.show { opacity:1; transform:translate(-50%,0); }
+    .toast.error { background:rgba(177,76,99,.93); }
+    .offline { display:none; width:8px; height:8px; margin-right:5px; border-radius:50%; background:var(--rose); }
+    @media (max-width:760px) {
+      body { padding:26px 14px 36px; overflow-y:auto; }
+      header { align-items:flex-start; flex-direction:column; margin-bottom:18px; }
+      .grid { grid-template-columns:1fr; gap:14px; }
+      .card { padding:21px 18px 19px; border-radius:21px; }
+      .status-card { min-height:390px; }
+      .orb-wrap { width:168px; height:168px; margin:20px 0 13px; }
+      .power-icon { width:72px; height:72px; }
+    }
+    @media (max-width:380px) {
+      .control-grid { grid-template-columns:1fr; }
+      .facts { grid-template-columns:1fr; }
+      .fact { display:flex; justify-content:space-between; align-items:center; }
+      .fact span { margin:0; }
+    }
+    @media (prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none!important; } }
+  </style>
+</head>
+<body>
+  <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
+  <main class="shell">
+    <header>
+      <div><p class="eyebrow">NanoPi R3S · Water Garden</p><h1>USB 风扇温控</h1></div>
+      <div class="clock"><i class="offline" id="offline"></i><span id="clock">正在连接设备…</span></div>
+    </header>
+    <section class="grid">
+      <article class="card status-card">
+        <h2 class="card-title">风扇供电状态</h2>
+        <div class="orb-wrap" id="orb">
+          <svg class="power-icon" viewBox="0 0 100 100" aria-hidden="true">
+            <circle cx="50" cy="50" r="9" fill="currentColor"/>
+            <path d="M50 42C42 28 43 13 53 11c11-2 17 14 12 28-3 8-9 10-15 3ZM58 50c14-8 29-7 31 3 2 11-14 17-28 12-8-3-10-9-3-15ZM50 58c8 14 7 29-3 31-11 2-17-14-12-28 3-8 9-10 15-3ZM42 50c-14 8-29 7-31-3-2-11 14-17 28-12 8 3 10 9 3 15Z" fill="currentColor" opacity=".88"/>
+          </svg>
+        </div>
+        <div class="status" id="status">读取中</div>
+        <p class="status-note" id="statusNote">正在读取 GPIO0_A6</p>
+        <div class="actions">
+          <button class="btn btn-on control" data-state="1">开启供电</button>
+          <button class="btn btn-off control" data-state="0">关闭供电</button>
+        </div>
+      </article>
+      <article class="card thermal-card">
+        <h2 class="card-title">CPU 实时温度</h2>
+        <div class="temp-display"><span class="temp-value" id="tempValue">--.-</span><span class="temp-unit">°C</span></div>
+        <div class="temp-track"><i id="tempBar"></i></div>
+        <div class="switch-row">
+          <div class="switch-copy"><strong>自动温控</strong><span>每 5 秒检查 CPU 温度</span></div>
+          <label class="switch"><input id="enabled" type="checkbox"><span class="slider"></span></label>
+        </div>
+        <div class="control-grid">
+          <label class="field"><span>启动温度 · °C</span><input id="temperature" type="number" value="45" min="20" max="90" step="1" inputmode="numeric" required></label>
+          <label class="field"><span>降温强度 · °C</span><input id="hysteresis" type="number" value="3" min="1" max="20" step="1" inputmode="numeric" required></label>
+        </div>
+        <div class="thermal-rule" id="thermalRule">高于启动温度开启，降低指定温度后停止</div>
+        <button class="btn save" id="save">保存温控设置</button>
+        <div class="facts">
+          <div class="fact"><b id="startValue">--°C</b><span>开启风扇</span></div>
+          <div class="fact"><b id="stopValue">--°C</b><span>停止风扇</span></div>
+          <div class="fact"><b>5 秒</b><span>检测间隔</span></div>
+        </div>
+      </article>
+    </section>
+  </main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script>
+    (function () {
+      "use strict";
+      var busy=false, loaded=false, toastTimer;
+      var statusEl=document.getElementById("status"), note=document.getElementById("statusNote");
+      var orb=document.getElementById("orb"), clock=document.getElementById("clock"), offline=document.getElementById("offline");
+      var enabled=document.getElementById("enabled"), temperature=document.getElementById("temperature"), hysteresis=document.getElementById("hysteresis");
+      var tempValue=document.getElementById("tempValue"), tempBar=document.getElementById("tempBar");
+      function showToast(text,error){var el=document.getElementById("toast");el.textContent=text;el.className="toast show"+(error?" error":"");clearTimeout(toastTimer);toastTimer=setTimeout(function(){el.className="toast";},2200);}
+      function setBusy(value){busy=value;Array.prototype.forEach.call(document.querySelectorAll("button"),function(b){b.disabled=value;});}
+      function updateRule(start,drop){var stop=start-drop;document.getElementById("startValue").textContent=start+"°C";document.getElementById("stopValue").textContent=stop+"°C";document.getElementById("thermalRule").textContent="CPU > "+start+"°C 开启风扇，降至 ≤ "+stop+"°C 停止";}
+      function update(d){
+        if(!d.ok){throw new Error(d.error||"设备返回错误");}
+        var on=d.state==="1", temp=d.cpu_temp;
+        statusEl.textContent=d.state==="unknown"?"状态未知":(on?"风扇运行中":"风扇已停止");
+        statusEl.className="status "+(on?"on":"off");orb.className="orb-wrap "+(on?"on":"");
+        note.textContent=d.enabled?("自动温控运行中 · "+(on?"正在降温":"等待升温")):("手动模式 · GPIO0_A6 "+(on?"高电平":"低电平"));
+        clock.textContent=d.server_time+" 北京时间";offline.style.display="none";
+        if(temp===null||typeof temp==="undefined"){tempValue.textContent="--.-";}else{tempValue.textContent=Number(temp).toFixed(1);var color=temp>d.temperature?"#e0708a":(temp>d.stop_temperature?"#e0a04c":"#5b8fd6");tempValue.style.color=color;tempBar.style.background=color;tempBar.style.width=Math.max(0,Math.min(100,temp/85*100))+"%";}
+        if(!loaded&&!busy){enabled.checked=!!d.enabled;temperature.value=d.temperature;hysteresis.value=d.hysteresis;loaded=true;}
+        updateRule(d.temperature,d.hysteresis);
+      }
+      function request(body){var options={cache:"no-store"};if(body){options.method="POST";options.headers={"Content-Type":"application/x-www-form-urlencoded"};options.body=body;}return fetch("cgi-bin/api",options).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();});}
+      function poll(){if(busy)return;request().then(update).catch(function(){offline.style.display="inline-block";clock.textContent="连接暂时中断";});}
+      Array.prototype.forEach.call(document.querySelectorAll(".control"),function(button){button.addEventListener("click",function(){var target=button.getAttribute("data-state");setBusy(true);request("action=control&state="+target).then(function(d){update(d);showToast(target==="1"?"风扇供电已开启":"风扇供电已关闭");}).catch(function(e){showToast(e.message,true);}).then(function(){setBusy(false);});});});
+      document.getElementById("save").addEventListener("click",function(){
+        var start=parseInt(temperature.value,10),drop=parseInt(hysteresis.value,10);
+        if(!isFinite(start)||start<20||start>90){showToast("启动温度范围为 20–90°C",true);return;}
+        if(!isFinite(drop)||drop<1||drop>20||drop>=start){showToast("降温强度应为 1–20°C 且低于启动温度",true);return;}
+        setBusy(true);var body="action=thermal&enabled="+(enabled.checked?"1":"0")+"&temperature="+start+"&hysteresis="+drop;
+        request(body).then(function(d){loaded=false;update(d);showToast("温控设置已保存");}).catch(function(e){showToast(e.message,true);}).then(function(){setBusy(false);});
+      });
+      temperature.addEventListener("input",function(){var a=parseInt(temperature.value,10),b=parseInt(hysteresis.value,10);if(isFinite(a)&&isFinite(b))updateRule(a,b);});
+      hysteresis.addEventListener("input",function(){var a=parseInt(temperature.value,10),b=parseInt(hysteresis.value,10);if(isFinite(a)&&isFinite(b))updateRule(a,b);});
+      poll();setInterval(poll,2000);
+    }());
+  </script>
+</body>
+</html>

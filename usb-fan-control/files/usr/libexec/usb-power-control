@@ -1,0 +1,171 @@
+#!/bin/sh
+
+GPIO_CHIP="gpiochip0"
+GPIO_LINE="6"
+GPIO_DEVICE="regulator-vcc5v0_usb"
+GPIO_DRIVER="/sys/bus/platform/drivers/reg-fixed-voltage"
+RUN_DIR="/var/run/usb-power"
+PID_FILE="$RUN_DIR/gpio.pid"
+STATE_FILE="$RUN_DIR/state"
+CHANGED_FILE="$RUN_DIR/changed"
+LOCK_DIR="/var/lock/usb-power.lockdir"
+
+mkdir -p "$RUN_DIR" /var/lock
+
+valid_state() {
+	[ "$1" = "0" ] || [ "$1" = "1" ]
+}
+
+gpio_value() {
+	local line
+	line="$(grep "gpio-${GPIO_LINE} " /sys/kernel/debug/gpio 2>/dev/null | head -n 1)"
+	case "$line" in
+		*"out hi"*) echo 1 ;;
+		*"out lo"*) echo 0 ;;
+		*) cat "$STATE_FILE" 2>/dev/null || echo unknown ;;
+	esac
+}
+
+holder_alive() {
+	local pid
+	pid="$(cat "$PID_FILE" 2>/dev/null)"
+	[ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+}
+
+stop_holder() {
+	local pid
+	pid="$(cat "$PID_FILE" 2>/dev/null)"
+	if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+		kill "$pid" 2>/dev/null
+		for _ in 1 2 3 4 5; do
+			kill -0 "$pid" 2>/dev/null || break
+			usleep 20000 2>/dev/null || sleep 1
+		done
+	fi
+	rm -f "$PID_FILE"
+}
+
+acquire_gpio() {
+	if [ -L "/sys/devices/platform/$GPIO_DEVICE/driver" ]; then
+		echo "$GPIO_DEVICE" > "$GPIO_DRIVER/unbind" || return 1
+	fi
+	return 0
+}
+
+set_locked() {
+	local wanted pid actual
+	wanted="$1"
+	valid_state "$wanted" || return 2
+	acquire_gpio || return 1
+	actual="$(gpio_value)"
+	if holder_alive && [ "$actual" = "$wanted" ]; then
+		echo "$wanted" > "$STATE_FILE"
+		return 0
+	fi
+	stop_holder
+	gpioset -z -c "$GPIO_CHIP" -C usb-power-control "$GPIO_LINE=$wanted" 1000>&- || return 1
+	sleep 1
+	pid="$(pidof gpioset 2>/dev/null | awk '{ print $1 }')"
+	[ -n "$pid" ] || return 1
+	echo "$pid" > "$PID_FILE"
+	echo "$wanted" > "$STATE_FILE"
+	TZ='CST-8' date '+%Y-%m-%d %H:%M:%S' > "$CHANGED_FILE"
+	uci -q set usbpower.main.state="$wanted"
+	uci -q commit usbpower
+	[ "$(gpio_value)" = "$wanted" ]
+}
+
+lock_acquire() {
+	local tries=0
+	while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+		tries=$((tries + 1))
+		if [ "$tries" -ge 10 ]; then
+			rmdir "$LOCK_DIR" 2>/dev/null || return 1
+		fi
+		sleep 1
+	done
+}
+
+lock_release() {
+	rmdir "$LOCK_DIR" 2>/dev/null || true
+}
+
+set_state() {
+	local rc
+	lock_acquire || return 1
+	trap 'lock_release' EXIT INT TERM
+	set_locked "$1"
+	rc=$?
+	lock_release
+	trap - EXIT INT TERM
+	return $rc
+}
+
+cpu_temp() {
+	local zone
+	for zone in /sys/class/thermal/thermal_zone*; do
+		[ "$(cat "$zone/type" 2>/dev/null)" = "cpu-thermal" ] || continue
+		cat "$zone/temp" 2>/dev/null
+		return
+	done
+}
+
+thermal_state() {
+	local temp threshold hysteresis current start stop
+	temp="$(cpu_temp)"
+	threshold="$(uci -q get usbpower.main.temperature || echo 45)"
+	hysteresis="$(uci -q get usbpower.main.hysteresis || echo 3)"
+	current="$(gpio_value)"
+	start=$((threshold * 1000))
+	stop=$(((threshold - hysteresis) * 1000))
+	if [ -n "$temp" ] && [ "$temp" -gt "$start" ] 2>/dev/null; then
+		echo 1
+	elif [ -n "$temp" ] && [ "$temp" -le "$stop" ] 2>/dev/null; then
+		echo 0
+	elif valid_state "$current"; then
+		echo "$current"
+	else
+		uci -q get usbpower.main.state || echo 1
+	fi
+}
+
+init_gpio() {
+	local wanted enabled
+	enabled="$(uci -q get usbpower.main.enabled || echo 0)"
+	if [ "$enabled" = "1" ]; then
+		wanted="$(thermal_state)"
+	else
+		wanted="$(uci -q get usbpower.main.state || echo 1)"
+	fi
+	set_state "$wanted"
+}
+
+release_gpio() {
+	local rc
+	lock_acquire || return 1
+	trap 'lock_release' EXIT INT TERM
+	release_locked
+	rc=$?
+	lock_release
+	trap - EXIT INT TERM
+	return $rc
+}
+
+release_locked() {
+	stop_holder
+	if [ ! -L "/sys/devices/platform/$GPIO_DEVICE/driver" ] && [ -e "$GPIO_DRIVER/bind" ]; then
+		echo "$GPIO_DEVICE" > "$GPIO_DRIVER/bind" 2>/dev/null || true
+	fi
+	rm -f "$STATE_FILE" "$CHANGED_FILE"
+}
+
+case "$1" in
+	init) init_gpio ;;
+	set) set_state "$2" ;;
+	status) gpio_value ;;
+	reconcile)
+		[ "$(uci -q get usbpower.main.enabled || echo 0)" = "1" ] && set_state "$(thermal_state)"
+		;;
+	release) release_gpio ;;
+	*) echo "usage: $0 {init|set 0|set 1|status|reconcile|release}" >&2; exit 2 ;;
+esac
