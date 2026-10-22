@@ -52,6 +52,8 @@ jobs:
           cd sdk
           ./scripts/feeds update -a
           ./scripts/feeds install -a
+          # SDK defaults enable every package; select only these two packages.
+          : > .config
           for name in r3s-monitor usb-fan-control; do
             cp -a "../$name" "package/$name"
             echo "CONFIG_PACKAGE_$name=m" >> .config
