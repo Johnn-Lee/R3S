@@ -57,13 +57,14 @@ jobs:
           ./scripts/feeds update base packages
           ./scripts/feeds install uhttpd uci ubus jsonfilter ip-tiny gpiod-tools uclient-fetch
           # SDK defaults enable every package; select only these two packages.
-          : > .config
+          printf '%s\n' 'CONFIG_ALL=n' 'CONFIG_ALL_NONSHARED=n' 'CONFIG_ALL_KMODS=n' > .config
           for name in r3s-monitor usb-fan-control; do
             cp -a "../$name" "package/$name"
             echo "CONFIG_PACKAGE_$name=m" >> .config
           done
           [ "$ERA" != apk ] || echo CONFIG_USE_APK=y >> .config
           make defconfig
+          ! grep -q '^CONFIG_ALL\(_NONSHARED\|_KMODS\)\?=y$' .config
           grep -q '^CONFIG_PACKAGE_r3s-monitor=m$' .config
           grep -q '^CONFIG_PACKAGE_usb-fan-control=m$' .config
           if [ "$GITHUB_REF_TYPE" = tag ]; then

@@ -3,11 +3,11 @@ include $(TOPDIR)/rules.mk
 PKG_NAME:=usb-fan-control
 PKG_VERSION:=1.0.0
 PKG_RELEASE:=1
-PKGARCH:=all
 
 include $(INCLUDE_DIR)/package.mk
 
 define Package/usb-fan-control
+  PKGARCH:=all
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=NanoPi R3S USB fan controller
