@@ -6,6 +6,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: r3s-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -37,7 +40,7 @@ jobs:
           base="https://downloads.openwrt.org/releases/$VERSION/targets/rockchip/armv8"
           wget -q "$base/$name" -O sdk.tar.zst
           wget -q "$base/sha256sums" -O sdk.sha256sums
-          grep " $name$" sdk.sha256sums | sed "s|$name$|sdk.tar.zst|" | sha256sum -c -
+          awk -v name="$name" '{ sub(/^\*/, "", $2); if ($2 == name) print $1 "  sdk.tar.zst" }' sdk.sha256sums | sha256sum -c -
           mkdir sdk
           tar --zstd -xf sdk.tar.zst --strip-components=1 -C sdk
           rm sdk.tar.zst
