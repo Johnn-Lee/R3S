@@ -5,99 +5,86 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>R3S 监控</title>
 <style>
-:root { color-scheme: light; }
-* { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { height: 100%; }
-svg { display: block; }
 
-/* ===== 莫奈印象派背景：层叠柔和色块 ===== */
-body {
-  color: #3c4a5c;
-  font-family: -apple-system, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif;
-  display: flex; align-items: center; justify-content: center;
-  overflow: hidden;
-  position: relative;
-  background:
-    radial-gradient(640px 460px at 12% 18%, rgba(154, 204, 228, 0.65), transparent 62%),
-    radial-gradient(520px 520px at 88% 12%, rgba(246, 200, 199, 0.55), transparent 62%),
-    radial-gradient(720px 540px at 78% 88%, rgba(178, 219, 188, 0.60), transparent 62%),
-    radial-gradient(620px 620px at 18% 82%, rgba(199, 184, 228, 0.55), transparent 62%),
-    radial-gradient(460px 360px at 52% 46%, rgba(255, 245, 219, 0.65), transparent 66%),
-    linear-gradient(160deg, #e9f2f7 0%, #f4eff8 100%);
+:root {
+  color-scheme: light;
+  --bg:#f5f5f7; --surface:#fff; --inset:#f5f5f7; --ink:#1d1d1f;
+  --muted:#6e6e73; --line:rgba(0,0,0,.08); --track:#e9e9ed;
+  --blue:#007aff; --green:#34c759; --rose:#ff3b30; --focus:rgba(0,122,255,.28);
+  --shadow:0 2px 12px rgba(0,0,0,.025);
 }
-/* 模拟笔触的柔焦色斑 */
-.blob { position: fixed; border-radius: 50%; filter: blur(70px); opacity: .55; pointer-events: none; }
-.blob.b1 { width: 420px; height: 340px; top: -80px; left: -60px;  background: #a7cde0; }
-.blob.b2 { width: 380px; height: 320px; bottom: -60px; right: -40px; background: #b9d9c2; }
-.blob.b3 { width: 300px; height: 260px; top: 30%; left: 58%; background: #f2cbd7; opacity: .45; }
+* { box-sizing:border-box; }
+body { margin:0; min-height:100vh; background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased; }
+button,input { font:inherit; }
+button { -webkit-tap-highlight-color:transparent; }
+button:focus-visible,input:focus-visible { outline:3px solid var(--focus); outline-offset:4px; }
+.shell { width:min(1080px,100%); margin:0 auto; padding:56px 28px 48px; }
+header { display:flex; justify-content:space-between; align-items:flex-end; gap:24px; margin-bottom:30px; }
+.eyebrow { margin:0 0 8px; color:var(--muted); font-size:12px; font-weight:600; letter-spacing:1.7px; text-transform:uppercase; }
+h1 { margin:0; font-size:34px; font-weight:700; letter-spacing:-1.2px; line-height:1.2; }
+.subtitle { margin:10px 0 0; color:var(--muted); font-size:14px; line-height:1.6; }
+.device-badge { display:flex; align-items:center; gap:8px; padding:8px 12px; border:1px solid var(--line); border-radius:20px; background:var(--surface); color:var(--muted); font-size:12px; white-space:nowrap; }
+.device-badge svg { width:14px; height:14px; color:var(--blue); }
+.card { min-width:0; background:var(--surface); border:1px solid var(--line); border-radius:22px; box-shadow:var(--shadow); }
 
-.row { display: flex; align-items: flex-end; justify-content: center; gap: 44px; padding: 24px; position: relative; }
-
-/* ===== 毛玻璃卡片 ===== */
-.card {
-  background: rgba(255, 255, 255, 0.38);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
-  backdrop-filter: blur(18px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.60);
-  border-radius: 24px;
-  padding: 24px 20px 18px;
-  display: flex; flex-direction: column; align-items: center;
-  box-shadow: 0 10px 34px rgba(84, 110, 140, 0.18),
-              inset 0 1px 0 rgba(255, 255, 255, 0.55);
+@media (max-width:760px) {
+  .shell { padding:30px 18px 32px; }
+  header { gap:18px; margin-bottom:24px; align-items:flex-start; }
+  h1 { font-size:28px; letter-spacing:-.8px; }
+  .subtitle { font-size:13px; }
+  .card { border-radius:20px; }
 }
-.card.small { width: 216px; }
-.card.big   { width: 348px; padding-top: 14px; }
-.label { font-size: 19px; color: #6f8096; letter-spacing: 2px; margin-top: 14px; }
-
-.ringwrap { position: relative; width: 168px; height: 168px; }
-.ringwrap svg { transform: rotate(-90deg); }
-.ringval {
-  position: absolute; inset: 0; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; text-align: center;
+@media (prefers-reduced-motion:reduce) {
+  *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
 }
-.ringval .v { font-size: 34px; font-weight: 600; color: #34455a; font-variant-numeric: tabular-nums; }
-.ringval .u { font-size: 14px; color: #7a8aa0; margin-top: 4px; letter-spacing: 1px; }
 
-.gaugeval { display: flex; flex-direction: column; align-items: center; margin-top: 0; }
-.gaugeval .v { font-size: 60px; font-weight: 700; color: #2e3f54; font-variant-numeric: tabular-nums; line-height: 1.1; }
-.gaugeval .v .pct { font-size: 0.45em; font-weight: 600; color: #7a8aa0; margin-left: 2px; }
-.gaugeval .u { font-size: 15px; color: #7a8aa0; letter-spacing: 2px; margin-top: 2px; }
-
-/* ============ 手机端适配 ============ */
-@media (max-width: 760px) {
-  body { overflow-y: auto; align-items: flex-start; }
-  .row {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(150px, 190px));
-    justify-content: center;
-    gap: 14px;
-    padding: 16px;
-    width: 100%;
-  }
-  .card.big {
-    grid-column: 1 / -1;
-    order: -1;                 /* 表盘置顶全宽 */
-    width: 100%;
-    max-width: 400px;
-    padding: 14px 10px 16px;
-    justify-self: center;
-  }
-  .card.big svg { width: 100%; height: auto; }
-  .card.small { width: 100%; padding: 16px 12px 12px; }
-  .ringwrap { width: 100%; height: auto; aspect-ratio: 1 / 1; }
-  .ringwrap svg { width: 100%; height: 100%; }
-  .ringval .v { font-size: 27px; }
-  .ringval .u { font-size: 12px; }
-  .gaugeval .v { font-size: 44px; }
-  .gaugeval .u { font-size: 13px; }
-  .label { font-size: 16px; margin-top: 10px; letter-spacing: 1.5px; }
+svg { display:block; }
+.row { display:grid; grid-template-columns:1fr 1.6fr 1fr; gap:18px; }
+.card { padding:22px; display:flex; flex-direction:column; align-items:center; }
+.card.small { min-height:224px; }
+.card:nth-child(1) { grid-column:1; grid-row:1; }
+.card:nth-child(2) { grid-column:3; grid-row:1; }
+.card.big { grid-column:2; grid-row:1 / span 2; justify-content:center; padding:28px; }
+.card:nth-child(4) { grid-column:1; grid-row:2; }
+.card:nth-child(5) { grid-column:3; grid-row:2; }
+.label { order:-1; align-self:flex-start; margin:0 0 20px; color:var(--muted); font-size:13px; font-weight:600; }
+.ringwrap { position:relative; width:128px; height:128px; margin:auto; }
+.ringwrap svg { width:100%; height:100%; transform:rotate(-90deg); }
+.ringwrap circle:first-child { stroke:var(--track); stroke-width:9px; }
+.ringwrap circle[id] { stroke-width:9px; }
+.ringval { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+.ringval .v { color:var(--ink); font-size:31px; font-weight:650; letter-spacing:-1px; font-variant-numeric:tabular-nums; }
+.ringval .u { margin-top:2px; color:var(--muted); font-size:12px; }
+#gauge-svg { width:100%; max-width:350px; height:auto; overflow:visible; }
+#gauge-svg > path:not([id]) { stroke:var(--track); stroke-width:13px; }
+#gauge-arc { stroke-width:13px; }
+#ticks,#ticks line { stroke:var(--muted); stroke-width:1.5px; opacity:.7; }
+#needle line,#needle circle:first-of-type { stroke:var(--ink); fill:var(--ink); }
+#needle circle:last-child { fill:var(--surface); }
+.gaugeval { display:flex; flex-direction:column; align-items:center; margin-top:14px; }
+.gaugeval .v { font-size:68px; line-height:1.1; font-weight:650; letter-spacing:-3px; font-variant-numeric:tabular-nums; }
+.gaugeval .pct { margin-left:4px; color:var(--muted); font-size:.38em; font-weight:500; letter-spacing:-.5px; }
+.gaugeval .u { margin-top:10px; color:var(--muted); font-size:14px; }
+@media (max-width:760px) {
+  header { flex-direction:column; }
+  .row { grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+  .card:nth-child(n) { grid-column:auto; grid-row:auto; }
+  .card.big { order:-1; grid-column:1 / -1; min-height:320px; padding:24px 30px; }
+  #gauge-svg { max-width:300px; }
+  .card.small { min-height:204px; padding:18px 14px; }
+  .label { margin-bottom:18px; font-size:12px; }
+  .ringwrap { width:112px; height:112px; max-width:100%; aspect-ratio:1; }
+  .ringval .v { font-size:28px; }
+  .gaugeval .v { font-size:58px; }
 }
 </style>
 </head>
 <body>
-<div class="blob b1"></div>
-<div class="blob b2"></div>
-<div class="blob b3"></div>
+<main class="shell">
+<header><div><p class="eyebrow">NanoPi R3S</p><h1>系统监控</h1><p class="subtitle">设备资源与网络流量</p></div>
+<div class="device-badge"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M2 11h3l2-6 5 11 2-6h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>每 2 秒更新</div></header>
 <div class="row">
 
   <!-- 内存使用 -->
@@ -105,7 +92,7 @@ body {
     <div class="ringwrap">
       <svg width="168" height="168" viewBox="0 0 168 168">
         <circle cx="84" cy="84" r="74" fill="none" stroke="rgba(110,138,168,0.22)" stroke-width="14"/>
-        <circle id="ring-mem" cx="84" cy="84" r="74" fill="none" stroke="#2fa98c"
+        <circle id="ring-mem" cx="84" cy="84" r="74" fill="none" stroke="#34c759"
                 stroke-width="14" stroke-linecap="round" pathLength="100"
                 stroke-dasharray="0 100" style="transition: stroke-dasharray .8s ease, stroke .8s ease"/>
       </svg>
@@ -119,7 +106,7 @@ body {
     <div class="ringwrap">
       <svg width="168" height="168" viewBox="0 0 168 168">
         <circle cx="84" cy="84" r="74" fill="none" stroke="rgba(110,138,168,0.22)" stroke-width="14"/>
-        <circle id="ring-temp" cx="84" cy="84" r="74" fill="none" stroke="#5b8fd6"
+        <circle id="ring-temp" cx="84" cy="84" r="74" fill="none" stroke="#007aff"
                 stroke-width="14" stroke-linecap="round" pathLength="100"
                 stroke-dasharray="0 100" style="transition: stroke-dasharray .8s ease, stroke .8s ease"/>
       </svg>
@@ -136,7 +123,7 @@ body {
       <!-- 背景弧 -->
       <path d="M 37 180 A 123 123 0 0 1 283 180" fill="none" stroke="rgba(110,138,168,0.22)" stroke-width="20" stroke-linecap="round"/>
       <!-- 进度弧 -->
-      <path id="gauge-arc" d="M 37 180 A 123 123 0 0 1 283 180" fill="none" stroke="#2fa98c"
+      <path id="gauge-arc" d="M 37 180 A 123 123 0 0 1 283 180" fill="none" stroke="#34c759"
             stroke-width="20" stroke-linecap="round" pathLength="100"
             stroke-dasharray="0 100" style="transition: stroke-dasharray .8s ease, stroke .8s ease"/>
       <!-- 指针 -->
@@ -154,7 +141,7 @@ body {
     <div class="ringwrap">
       <svg width="168" height="168" viewBox="0 0 168 168">
         <circle cx="84" cy="84" r="74" fill="none" stroke="rgba(110,138,168,0.22)" stroke-width="14"/>
-        <circle id="ring-rx" cx="84" cy="84" r="74" fill="none" stroke="#4a9fd8"
+        <circle id="ring-rx" cx="84" cy="84" r="74" fill="none" stroke="#007aff"
                 stroke-width="14" stroke-linecap="round" pathLength="100"
                 stroke-dasharray="0 100" style="transition: stroke-dasharray .8s ease, stroke .8s ease"/>
       </svg>
@@ -168,7 +155,7 @@ body {
     <div class="ringwrap">
       <svg width="168" height="168" viewBox="0 0 168 168">
         <circle cx="84" cy="84" r="74" fill="none" stroke="rgba(110,138,168,0.22)" stroke-width="14"/>
-        <circle id="ring-tx" cx="84" cy="84" r="74" fill="none" stroke="#8f7ec9"
+        <circle id="ring-tx" cx="84" cy="84" r="74" fill="none" stroke="#5856d6"
                 stroke-width="14" stroke-linecap="round" pathLength="100"
                 stroke-dasharray="0 100" style="transition: stroke-dasharray .8s ease, stroke .8s ease"/>
       </svg>
@@ -178,6 +165,7 @@ body {
   </div>
 
 </div>
+</main>
 <script>
 (function () {
   // 生成表盘刻度（每 10% 一格）
@@ -204,11 +192,11 @@ body {
   }
   function setStroke(id, color) { $(id).setAttribute('stroke', color); }
 
-  // 莫奈色系：睡莲绿 / 晨雾蓝 / 睡莲粉 / 玫红
+  // 状态颜色：正常 / 警告 / 高负载
   function colorFor(pct, warn, crit) {
-    return pct < warn ? '#2fa98c' : (pct < crit ? '#e0a04c' : '#e0708a');
+    return pct < warn ? '#34c759' : (pct < crit ? '#ff9500' : '#ff3b30');
   }
-  function tempColor(t) { return t < 60 ? '#5b8fd6' : (t < 75 ? '#e0a04c' : '#e0708a'); }
+  function tempColor(t) { return t < 60 ? '#007aff' : (t < 75 ? '#ff9500' : '#ff3b30'); }
 
   // 字节/秒 -> Mbps 显示
   function fmtMbps(bps) {

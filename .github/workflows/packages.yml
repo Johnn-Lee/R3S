@@ -1,0 +1,130 @@
+name: Build R3S packages
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh tests/run.sh
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - era: ipk
+            version: 24.10.8
+            gcc: 13.3.0
+          - era: apk
+            version: 25.12.5
+            gcc: 14.3.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download official rockchip SDK
+        env:
+          VERSION: ${{ matrix.version }}
+          GCC_VERSION: ${{ matrix.gcc }}
+        run: |
+          set -eu
+          name="openwrt-sdk-$VERSION-rockchip-armv8_gcc-${GCC_VERSION}_musl.Linux-x86_64.tar.zst"
+          base="https://downloads.openwrt.org/releases/$VERSION/targets/rockchip/armv8"
+          wget -q "$base/$name" -O sdk.tar.zst
+          wget -q "$base/sha256sums" -O sdk.sha256sums
+          grep " $name$" sdk.sha256sums | sed "s|$name$|sdk.tar.zst|" | sha256sum -c -
+          mkdir sdk
+          tar --zstd -xf sdk.tar.zst --strip-components=1 -C sdk
+          rm sdk.tar.zst
+      - name: Configure SDK
+        env:
+          ERA: ${{ matrix.era }}
+        run: |
+          set -eu
+          cd sdk
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          for name in r3s-monitor usb-fan-control; do
+            cp -a "../$name" "package/$name"
+            echo "CONFIG_PACKAGE_$name=m" >> .config
+          done
+          [ "$ERA" != apk ] || echo CONFIG_USE_APK=y >> .config
+          make defconfig
+          grep -q '^CONFIG_PACKAGE_r3s-monitor=m$' .config
+          grep -q '^CONFIG_PACKAGE_usb-fan-control=m$' .config
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            for name in r3s-monitor usb-fan-control; do
+              version="$(sed -n 's/^PKG_VERSION:=//p' "../$name/Makefile")"
+              test "$GITHUB_REF_NAME" = "v$version"
+            done
+          fi
+      - name: Build both packages
+        run: |
+          cd sdk
+          make package/r3s-monitor/compile V=sc -j"$(nproc)"
+          make package/usb-fan-control/compile V=sc -j"$(nproc)"
+      - name: Collect packages
+        env:
+          ERA: ${{ matrix.era }}
+        run: |
+          set -eu
+          mkdir dist
+          for name in r3s-monitor usb-fan-control; do
+            file="$(find sdk/bin/packages -type f -name "$name*.$ERA" -print -quit)"
+            test -n "$file"
+            cp "$file" "dist/$name.$ERA"
+          done
+      - name: Sign and verify both APKs
+        if: matrix.era == 'apk'
+        env:
+          APK_SIGNING_KEY: ${{ secrets.APK_SIGNING_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$APK_SIGNING_KEY" || { echo 'APK_SIGNING_KEY is required.' >&2; exit 1; }
+          key="$RUNNER_TEMP/r3s-signing.pem"
+          trap 'rm -f "$key"' EXIT
+          umask 077
+          printf '%s\n' "$APK_SIGNING_KEY" > "$key"
+          for name in r3s-monitor usb-fan-control; do
+            bash scripts/sign-apk.sh "$PWD/sdk/staging_dir/host/bin/apk" "$PWD/dist/$name.apk" "$key" keys/r3s.pem
+          done
+          cp keys/r3s.pem dist/r3s.pem
+      - name: Test isolated package installation
+        run: bash scripts/test-packages.sh '${{ matrix.era }}' "$PWD/dist" "$PWD/sdk/staging_dir/host/bin/apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r3s-${{ matrix.era }}
+          path: dist/*
+          if-no-files-found: error
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: r3s-*
+          merge-multiple: true
+          path: dist
+      - name: Verify release assets
+        run: |
+          set -eu
+          for name in r3s-monitor usb-fan-control; do
+            test -s "dist/$name.ipk"
+            test -s "dist/$name.apk"
+          done
+          test -s dist/r3s.pem
+          (cd dist && sha256sum *.ipk *.apk r3s.pem > SHA256SUMS)
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true
