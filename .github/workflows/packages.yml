@@ -30,6 +30,10 @@ jobs:
             gcc: 14.3.0
     steps:
       - uses: actions/checkout@v4
+      - name: Install SDK host dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y rsync python3-pyelftools
       - name: Download official rockchip SDK
         env:
           VERSION: ${{ matrix.version }}
@@ -50,8 +54,8 @@ jobs:
         run: |
           set -eu
           cd sdk
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
+          ./scripts/feeds update base packages
+          ./scripts/feeds install uhttpd uci ubus jsonfilter ip-tiny gpiod-tools uclient-fetch
           # SDK defaults enable every package; select only these two packages.
           : > .config
           for name in r3s-monitor usb-fan-control; do
