@@ -100,4 +100,3 @@ if [ "$${PKG_UPGRADE:-0}" = "1" ] || [ "$$1" = "upgrade" ]; then
 fi
 R3S_PACKAGE_MODE=1 /usr/libexec/usb-fan-control-package-uninstall
 endef
-
