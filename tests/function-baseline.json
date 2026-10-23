@@ -1,0 +1,96 @@
+{
+  "base_commit": "d07e65e",
+  "runtime_files": {
+    "r3s-monitor/files/etc/init.d/r3s-monitor": "01ec66a9f1bb95138be9fa65880309291d26941d0646bc1a5a3b9b105dadc62e",
+    "r3s-monitor/files/usr/bin/monitor-collector.sh": "e7bd8318c648e5c75772518ebd6d26027ffb055d0a24d9d9ae6f61f96f373f1c",
+    "usb-fan-control/files/etc/config/usbpower": "e7ced1cdca62471a8a63f99dcbcd50d3424083a6d7ad780308c246bf577def32",
+    "usb-fan-control/files/etc/init.d/usb-power": "fdbb4d2e950c21e246b5d3c1053cbe6ce879e22e9e68146243e0f5037e159771",
+    "usb-fan-control/files/usr/libexec/usb-power-control": "907c48ca5ceb12325cedd245f905ae374966a05f52be363d7b5482b15a5df6eb",
+    "usb-fan-control/files/usr/libexec/usb-power-thermal": "ab4801b223100b741d1fb4f626c65fba33d38b7079b3ec4be0a9788299e0485c",
+    "usb-fan-control/files/www/usb-power/cgi-bin/api": "afccfee7f4ca5a5c01f09c197e07145f14526e46aa2c2d5a0de17c7b4ad7ac81"
+  },
+  "scripts": {
+    "r3s-monitor/files/www/monitor/index.html": "f0d2c825ef170d2f548aa53bb9faf91521a05ea96c460aa225b933c3881f6991",
+    "usb-fan-control/files/www/usb-power/index.html": "b9d7fd8a6856f4b9000dd2f45e09b43f4947851bd4cf4ec45313b07aef16b9d6"
+  },
+  "controls": {
+    "r3s-monitor/files/www/monitor/index.html": {
+      "ids": [
+        "gauge-arc",
+        "gauge-svg",
+        "needle",
+        "ring-mem",
+        "ring-rx",
+        "ring-temp",
+        "ring-tx",
+        "ticks",
+        "val-cpu",
+        "val-mem",
+        "val-rx",
+        "val-temp",
+        "val-tx"
+      ],
+      "inputs": [],
+      "buttons": []
+    },
+    "usb-fan-control/files/www/usb-power/index.html": {
+      "ids": [
+        "clock",
+        "enabled",
+        "hysteresis",
+        "offline",
+        "orb",
+        "save",
+        "startValue",
+        "status",
+        "statusNote",
+        "stopValue",
+        "tempBar",
+        "tempValue",
+        "temperature",
+        "thermalRule",
+        "toast"
+      ],
+      "inputs": [
+        {
+          "id": "enabled",
+          "type": "checkbox"
+        },
+        {
+          "id": "temperature",
+          "type": "number",
+          "value": "45",
+          "min": "20",
+          "max": "90",
+          "step": "1",
+          "inputmode": "numeric",
+          "required": null
+        },
+        {
+          "id": "hysteresis",
+          "type": "number",
+          "value": "3",
+          "min": "1",
+          "max": "20",
+          "step": "1",
+          "inputmode": "numeric",
+          "required": null
+        }
+      ],
+      "buttons": [
+        {
+          "class": "btn btn-on control",
+          "data-state": "1"
+        },
+        {
+          "class": "btn btn-off control",
+          "data-state": "0"
+        },
+        {
+          "class": "btn save",
+          "id": "save"
+        }
+      ]
+    }
+  }
+}

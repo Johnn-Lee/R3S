@@ -1,29 +1,14 @@
 # NanoPi R3S USB 风扇温控
 
-## 安装
+亮色 Apple 风格界面，保留原有功能和 `http://R3S的LAN地址:54199/` 访问地址。
 
-使用 root 登录 R3S 后执行：
-
-```sh
-cd /tmp
-wget -O R3S-main.tar.gz https://github.com/Johnn-Lee/R3S/archive/refs/heads/main.tar.gz
-tar -xzf R3S-main.tar.gz
-cd R3S-main/usb-fan-control
-sh install.sh
-```
-
-安装成功后，根据终端显示的 LAN 地址访问网页，端口为 `54199`。重复运行安装器可升级，已有温控配置会保留。
-
-也可以把整个 `usb-fan-control` 目录上传到 R3S，然后在目录中运行：
+推荐使用 [仓库安装说明](../README.md#安装与升级) 中的原生 IPK / 签名 APK。单独安装本工具：
 
 ```sh
-sh install.sh
+wget -O /tmp/r3s-install.sh https://raw.githubusercontent.com/Johnn-Lee/R3S/main/install-packages.sh
+sh /tmp/r3s-install.sh usb-fan-control
 ```
 
-## 卸载
+使用软件包管理器安装后，通过 `opkg remove usb-fan-control` 或 `apk del usb-fan-control` 卸载。
 
-进入 `usb-fan-control` 目录后执行：
-
-```sh
-sh uninstall.sh
-```
+原有源码安装方式仍保留：将整个 `usb-fan-control` 文件夹上传到 R3S，进入目录执行 `sh install.sh`；仅源码安装的部署使用 `sh uninstall.sh` 卸载。不要用源码卸载器删除软件包管理器安装的文件。

@@ -43,7 +43,9 @@ need() {
 }
 
 [ "$(id -u)" = "0" ] || die "请使用 root 用户运行安装器"
-[ -n "$BASE_DIR" ] && [ -d "$BASE_DIR/files" ] || die "安装文件不完整"
+if [ "${R3S_PACKAGE_MODE:-0}" != "1" ]; then
+	[ -n "$BASE_DIR" ] && [ -d "$BASE_DIR/files" ] || die "安装文件不完整"
+fi
 
 compatible="$(tr '\0' '\n' </proc/device-tree/compatible 2>/dev/null)"
 printf '%s\n' "$compatible" | grep -qx 'friendlyarm,nanopi-r3s' || die "此安装包仅支持 NanoPi R3S"
@@ -101,6 +103,10 @@ if netstat -lnt 2>/dev/null | awk -v port=":$PORT" '$4 ~ port"$" { found=1 } END
 fi
 
 for path in /etc/init.d/usb-power /usr/libexec/usb-power-control /usr/libexec/usb-power-thermal /www/usb-power/index.html /www/usb-power/cgi-bin/api; do
+	if [ "${R3S_PACKAGE_MODE:-0}" = "1" ]; then
+		[ -f "$path" ] || die "缺少软件包文件 $path"
+		continue
+	fi
 	source="$BASE_DIR/files$path"
 	[ -f "$source" ] || die "缺少安装文件 $source"
 	mkdir -p "$(dirname "$path")" || die "无法创建目标目录"
